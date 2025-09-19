@@ -1,7 +1,7 @@
-# =============================================================
+# ===================================================
 # ETL dataset público de aeropuertos - Versión Delta
 # Compatible con Databricks Community Edition
-# =============================================================
+# ===================================================
 
 import pandas as pd
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
