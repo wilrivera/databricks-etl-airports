@@ -48,7 +48,7 @@ df_clean = (
 )
 
 # 5. Guardar en Parquet
-output_path = "/mnt/airports/airports_parquet_opt2"
+output_path = "/FileStore/tables/airports_parquet_opt2"
 df_clean.write.mode("overwrite").parquet(output_path)
 
 # 6. Registrar tabla en catálogo
