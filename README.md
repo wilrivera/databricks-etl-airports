@@ -4,6 +4,7 @@ Proyecto de práctica de ETL en Databricks Community Edition.
 
 # Estructura
 databricks-etl-airports/
+
 ├─ README.md
 
 ├─ notebooks/
