@@ -1,13 +1,11 @@
-# Databricks notebook source
 # =============================================================
-# ETL de dataset público de aeropuertos (OurAirports) - Opción 2
-# Lectura usando Pandas y conversión a Spark
+# ETL de dataset público de aeropuertos (OurAirports) - Opción 2 corregida
 # =============================================================
 
 import pandas as pd
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
 
-# 1. Definir esquema
+# 1. Definir esquema (timezone como StringType en lugar de DoubleType)
 schema = StructType([
     StructField("id", IntegerType(), True),
     StructField("name", StringType(), True),
@@ -18,7 +16,7 @@ schema = StructType([
     StructField("latitude", DoubleType(), True),
     StructField("longitude", DoubleType(), True),
     StructField("altitude", IntegerType(), True),
-    StructField("timezone", DoubleType(), True),
+    StructField("timezone", StringType(), True),  # 👈 corregido
     StructField("dst", StringType(), True),
     StructField("tz_database_time_zone", StringType(), True),
     StructField("type", StringType(), True),
@@ -40,7 +38,14 @@ print(f"Cantidad de registros: {df_raw.count()}")
 df_raw.show(5, truncate=False)
 
 # 4. Transformación
-df_clean = df_raw.filter(df_raw.country.isNotNull()).withColumn("country", df_raw.country.upper())
+from pyspark.sql.functions import col, upper
+
+df_clean = (
+    df_raw
+    .filter(col("country").isNotNull())
+    .withColumn("country", upper(col("country")))
+    .withColumn("timezone", col("timezone").cast(DoubleType()))  # 👈 convertir aquí
+)
 
 # 5. Guardar en Parquet
 output_path = "/mnt/airports/airports_parquet_opt2"
