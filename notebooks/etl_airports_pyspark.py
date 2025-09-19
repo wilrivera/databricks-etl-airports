@@ -1,5 +1,5 @@
 # =============================================================
-# ETL de dataset público de aeropuertos (OurAirports) - Versión Delta
+# ETL dataset público de aeropuertos - Versión Delta
 # Compatible con Databricks Community Edition
 # =============================================================
 
