@@ -1,11 +1,11 @@
-# Notebook principal
-
 # Databricks notebook source
-# ETL de dataset público de aeropuertos (OurAirports)
-# Fuente: https://raw.githubusercontent.com/jpatokal/openflights/master/data/airports.dat
+# =============================================================
+# ETL de dataset público de aeropuertos (OurAirports) - Opción 1
+# Lectura usando SparkFiles
+# =============================================================
 
-from pyspark.sql import SparkSession
 from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
+from pyspark import SparkFiles
 
 # 1. Definir esquema
 schema = StructType([
@@ -25,34 +25,40 @@ schema = StructType([
     StructField("source", StringType(), True),
 ])
 
-# 2. Leer dataset público (CSV desde GitHub)
 url = "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airports.dat"
-df_raw = spark.read.csv(url, schema=schema)
+
+# 2. Descargar archivo temporal
+spark.sparkContext.addFile(url)
+local_path = SparkFiles.get("airports.dat")
+
+# 3. Leer archivo con Spark
+df_raw = spark.read.csv(local_path, schema=schema)
 
 print(f"Cantidad de registros: {df_raw.count()}")
 df_raw.show(5, truncate=False)
 
-# 3. Transformaciones (ejemplo: limpiar nulos y normalizar mayúsculas en país)
-df_clean = (
-    df_raw
-    .filter(df_raw.country.isNotNull())
-    .withColumn("country", df_raw.country.upper())
-)
+# 4. Transformación
+df_clean = df_raw.filter(df_raw.country.isNotNull()).withColumn("country", df_raw.country.upper())
 
-# 4. Guardar en formato Parquet en el almacenamiento de Databricks
-output_path = "/mnt/airports/airports_parquet"
+# 5. Guardar en Parquet
+output_path = "/mnt/airports/airports_parquet_opt1"
 df_clean.write.mode("overwrite").parquet(output_path)
 
-print("✅ Data guardada en formato Parquet en:", output_path)
-
-# 5. Registrar tabla en el catálogo para consultas SQL
+# 6. Registrar tabla en catálogo
 spark.sql("CREATE DATABASE IF NOT EXISTS airports_db")
-spark.sql("DROP TABLE IF EXISTS airports_db.airports")
+spark.sql("DROP TABLE IF EXISTS airports_db.airports_opt1")
 spark.sql(f"""
-    CREATE TABLE airports_db.airports
+    CREATE TABLE airports_db.airports_opt1
     USING PARQUET
     LOCATION '{output_path}'
 """)
 
-print("✅ Tabla registrada en catalogo: airports_db.airports")
-
+# 7. Consulta de prueba
+result = spark.sql("""
+    SELECT country, COUNT(*) AS num_airports
+    FROM airports_db.airports_opt1
+    GROUP BY country
+    ORDER BY num_airports DESC
+    LIMIT 10
+""")
+result.show()
