@@ -1,64 +1,58 @@
 # Notebook principal
 
-# 1) VARIABLES
-csv_url = "https://ourairports.com/countries/US/airports.csv"   # fuente pública (US)
-dbfs_csv_path = "/dbfs/tmp/airports_us.csv"                     # ruta temporal en driver/DBFS
-parquet_dir = "dbfs:/FileStore/airports/us_airports_parquet"    # donde guardaremos Parquet
-database_name = "demo_etl"
-table_name = "us_airports"
+# Databricks notebook source
+# ETL de dataset público de aeropuertos (OurAirports)
+# Fuente: https://raw.githubusercontent.com/jpatokal/openflights/master/data/airports.dat
 
-# 2) Intentar lectura directa (rápida) -- algunos workspaces permiten leer desde HTTP
 from pyspark.sql import SparkSession
-spark = SparkSession.builder.getOrCreate()
-try:
-    df = spark.read.option("header", True).option("inferSchema", True).csv(csv_url)
-    print("Lectura directa desde URL: OK")
-except Exception as e:
-    print("Lectura directa falló:", e)
-    # 3) Fallback: descargar al driver y guardar en /dbfs, luego leer desde DBFS
-    import urllib.request
-    print("Descargando CSV al driver y guardando en /dbfs/tmp ...")
-    urllib.request.urlretrieve(csv_url, dbfs_csv_path)
-    df = spark.read.option("header", True).option("inferSchema", True).csv("dbfs:/tmp/airports_us.csv")
+from pyspark.sql.types import StructType, StructField, StringType, DoubleType, IntegerType
 
-# 4) Inspeccionar
-print("Schema:")
-df.printSchema()
-display(df.limit(10))
+# 1. Definir esquema
+schema = StructType([
+    StructField("id", IntegerType(), True),
+    StructField("name", StringType(), True),
+    StructField("city", StringType(), True),
+    StructField("country", StringType(), True),
+    StructField("iata", StringType(), True),
+    StructField("icao", StringType(), True),
+    StructField("latitude", DoubleType(), True),
+    StructField("longitude", DoubleType(), True),
+    StructField("altitude", IntegerType(), True),
+    StructField("timezone", DoubleType(), True),
+    StructField("dst", StringType(), True),
+    StructField("tz_database_time_zone", StringType(), True),
+    StructField("type", StringType(), True),
+    StructField("source", StringType(), True),
+])
 
-# 5) Selección / limpieza básica
-from pyspark.sql.functions import col, expr
-df2 = df.select(
-    col("id").cast("long"),
-    col("ident"),
-    col("type"),
-    col("name"),
-    col("latitude_deg").cast("double"),
-    col("longitude_deg").cast("double"),
-    col("elevation_ft").cast("double"),
-    col("iso_country"),
-    col("iso_region"),
-    col("municipality"),
-    col("iata_code"),
-    col("gps_code")
-).na.drop(subset=["latitude_deg", "longitude_deg"])  # eliminar filas sin coordenadas
+# 2. Leer dataset público (CSV desde GitHub)
+url = "https://raw.githubusercontent.com/jpatokal/openflights/master/data/airports.dat"
+df_raw = spark.read.csv(url, schema=schema)
 
-# Derivada: elevación en metros
-df2 = df2.withColumn("elevation_m", expr("round(elevation_ft * 0.3048, 2)"))
+print(f"Cantidad de registros: {df_raw.count()}")
+df_raw.show(5, truncate=False)
 
-display(df2.limit(10))
+# 3. Transformaciones (ejemplo: limpiar nulos y normalizar mayúsculas en país)
+df_clean = (
+    df_raw
+    .filter(df_raw.country.isNotNull())
+    .withColumn("country", df_raw.country.upper())
+)
 
-# 6) Guardar en Parquet (partition opcional por iso_region, por ejemplo)
-df2.write.mode("overwrite").partitionBy("iso_region").parquet(parquet_dir)
-print("Parquet guardado en:", parquet_dir)
+# 4. Guardar en formato Parquet en el almacenamiento de Databricks
+output_path = "/mnt/airports/airports_parquet"
+df_clean.write.mode("overwrite").parquet(output_path)
 
-# 7) Registrar en catálogo/metastore para consultas SQL
-# Opción A: Crear base si no existe
-spark.sql(f"CREATE DATABASE IF NOT EXISTS {database_name}")
-# Opción B: Crear tabla externa apuntando al parquet
+print("✅ Data guardada en formato Parquet en:", output_path)
+
+# 5. Registrar tabla en el catálogo para consultas SQL
+spark.sql("CREATE DATABASE IF NOT EXISTS airports_db")
+spark.sql("DROP TABLE IF EXISTS airports_db.airports")
 spark.sql(f"""
-CREATE TABLE IF NOT EXISTS {database_name}.{table_name}
-USING PARQUET
-LOCATION '{parquet_dir}'
+    CREATE TABLE airports_db.airports
+    USING PARQUET
+    LOCATION '{output_path}'
 """)
-print("Tabla registrada como:", f"{database_name}.{table_name}")
+
+print("✅ Tabla registrada en catalogo: airports_db.airports")
+
