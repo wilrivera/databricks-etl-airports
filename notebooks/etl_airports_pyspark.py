@@ -59,6 +59,5 @@ result = spark.sql("""
     FROM airports_db.airports_delta
     GROUP BY country
     ORDER BY num_airports DESC
-    LIMIT 10
 """)
 result.show()
