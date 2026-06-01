@@ -1,3 +1,4 @@
+"""
 # ===================================================
 # ETL Dataset público de Aeropuertos - Versión Delta
 # Compatible con Databricks Community Edition
@@ -61,3 +62,4 @@ result = spark.sql("""
     ORDER BY num_airports DESC
 """)
 result.show()
+"""
